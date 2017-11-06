@@ -6,10 +6,11 @@ import matplotlib.pyplot as plt
 from scipy import linalg
 from scipy.stats import linregress
 from scipy.interpolate import interp1d
-from sklearn import mixture
+from sklearn import mixture, cluster
 import pydl.pydlutils.spheregroup
 from set_spec_dict import set_spec_dict
 from supercolors import *
+from RSfit import *
 
 
 class CMD:
@@ -295,6 +296,7 @@ class CMD:
             prevonRS = np.copy(onRS)
 
     def RSmixture(self, covtype = 'full'):
+        # Clustering analysis of RS and BC using GMMs
         try:
             self.m_b, self.m_r
         except AttributeError:
@@ -323,8 +325,43 @@ class CMD:
                 ell = mpl.patches.Ellipse(Gmean, v[0], v[1], 180. + angle, color=color, fill = False, lw = 2)
                 ell.set_clip_box(self.ax.bbox)
                 self.ax.add_artist(ell)
-                
-                
+
+    def RSkmeans(self, n_clusters = 2, init = 'k-means++'):
+        # Clustering analysis of RS and BC using k-means
+        try:
+            self.m_b, self.m_r
+        except AttributeError:
+            print "Set magnitudes first"
+            return
+        # means can be initialized with specific values by
+        # passing an array to init (must have dimensions
+        # equal to n_clusters
+        if np.shape(init) != (): 
+            if len(init) != n_clusters:
+                print "init must have length equal to n_clusters"
+                return
+        X = pd.DataFrame({'m_r': self.m_r, 'color': self.m_b - self.m_r})[['m_r','color']]
+        self.kmeans = cluster.KMeans(n_clusters = n_clusters, init = init)
+        self.kmeans.fit(X)
+
+    def plot_RSkmeans(self, meshstepperc = 0.001):
+        # Plot k-means decision boundary
+        try:
+            self.kmeans, self.ax
+        except AttributeError:
+            print "run RSkmeans and created CMD plot first"
+        #Create meshgrid to plot decision boundary
+        xlim = self.ax.get_xlim()
+        ylim = self.ax.get_ylim()
+        x_min, x_max = xlim[0], xlim[1]
+        y_min, y_max = ylim[0], ylim[1]
+        xx, yy = np.meshgrid(np.arange(x_min, x_max, meshstepperc * (x_max - x_min)), np.arange(y_min, y_max, meshstepperc * (y_max - y_min)))
+        pred = self.kmeans.predict(np.c_[xx.ravel(), yy.ravel()])
+        pred = pred.reshape(xx.shape)
+        self.ax.scatter(self.kmeans.cluster_centers_[:,0],self.kmeans.cluster_centers_[:,1],marker = 'x',color='magenta',s = 50)
+        self.ax.contourf(xx, yy, pred, color='cyan', alpha = 0.1)
+        self.ax.set_xlim(xlim)
+        self.ax.set_ylim(ylim)
 
 def set_plot_params():
     # Standard plotting parameters

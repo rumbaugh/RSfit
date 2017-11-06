@@ -1,5 +1,7 @@
 import numpy as np
+import matplotlib.pylab as pl
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 
 def plot_RS(ax, y0, m, width, xspace = None, plotcenter=False):
     # Plot red sequence
@@ -68,3 +70,9 @@ def get_inp_pnt():
             except:
                 print "Inputs must be floats: %s"%inp_pnt
     return x,y
+
+def one_color_cmap(cmap = pl.cm.gray):
+    my_cmap = cmap(np.arange(cmap.N))
+    my_cmap[:,-1] = np.append(np.ones(1), np.zeros(cmap.N-1))
+    my_cmap = ListedColormap(my_cmap)
+    return my_cmap
