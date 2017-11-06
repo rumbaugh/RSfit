@@ -3,11 +3,11 @@ import pandas as pd
 import time
 import matplotlib
 import matplotlib.pyplot as plt
+from scipy import linalg
 from scipy.stats import linregress
 from scipy.interpolate import interp1d
+from sklearn import mixture
 import pydl.pydlutils.spheregroup
-import leastsq
-import fitmodel
 from set_spec_dict import set_spec_dict
 from supercolors import *
 
@@ -172,8 +172,37 @@ class CMD:
         self.ax.set_title(self.field.upper())
         if show: plt.show(block = False)
 
+    def plotRSO(self, plotRSbounds = True, RSOstep = 0.25, show = True, figure = 2, clear = True):
+        # Plots histogram of red sequence offsets
+        try:
+            self.m_b, self.m_r, self.y0, self.m, self.wid
+        except AttributeError:
+            print "Must set magnitudes and RS parameters"
+            return
+        try:
+            self.RSOax
+        except AttributeError:
+            self.RSOfig = plt.figure(figure)
+            self.RSOax = self.RSOfig.add_subplot(111)
+        if clear: self.RSOax.cla()
+        set_plot_params()
+        RSOs = (RS_model(self.m_r, self.y0, self.m) - (self.m_b - self.m_r)) / (self.wid * 0.5)
+        # Creates a nice range for plotting, using bin widths 
+        # equal to RSOstep
+        rangeLB, rangeUB = np.floor(np.min(RSOs)/RSOstep)*RSOstep, np.ceil(np.max(RSOs)/RSOstep)*RSOstep
+        nbins = int((rangeUB - rangeLB)/RSOstep)
+        # Plot histogram of RSOs
+        self.RSOax.hist(RSOs, bins = nbins, range = (rangeLB, rangeUB))
+        # Plot bounds of red sequence
+        if plotRSbounds:
+            self.RSOax.axvline(-1, ls = 'dashed', lw = 2, color = 'k')
+            self.RSOax.axvline(+1, ls = 'dashed', lw = 2, color = 'k')
+        self.ax.set_xlabel('Red Sequence Offset')
+        self.ax.set_ylabel('Number of galaxies')
+        self.ax.set_title(self.field.upper())
+        
     def setRSinit(self, figure = 1, numsig = None):
-        # Uses user input to initialize RS parameters
+        # Uses user input to initialize RS parameters/fitting region
         try:
             self.ax
         except AttributeError:
@@ -212,7 +241,6 @@ class CMD:
 
     def RSsigclip(self, stepwait = 0):
         #Does sigma-clipping/linear fit algorithm to fit RS
-        cntr = 0
         try:
             self.y0, self.m, self.wid, self.sig
         except AttributeError:
@@ -232,6 +260,7 @@ class CMD:
             # End when there is no change in RS membership
             if np.count_nonzero(onRS != prevonRS) > 0: doclip = False
             if stepwait > 0:
+                # Optional step-by-step plotting
                 self.plot_CMD()
                 plot_RS(self.ax, self.y0, self.m, self.numsig*2*np.std(RSOs[onRS]), plotcenter = False)
                 time.sleep(stepwait)
@@ -243,7 +272,6 @@ class CMD:
 
     def RSmodel(self, stepwait = 0):
         #Does sigma-clipping/linear fit algorithm to fit RS
-        cntr = 0
         try:
             self.y0, self.m, self.wid, self.sig
         except AttributeError:
@@ -265,6 +293,37 @@ class CMD:
                 plot_RS(self.ax, self.y0, self.m, self.wid, plotcenter = False)
                 time.sleep(stepwait)
             prevonRS = np.copy(onRS)
+
+    def RSmixture(self, covtype = 'full'):
+        try:
+            self.m_b, self.m_r
+        except AttributeError:
+            print "Set magnitudes first"
+            return
+        X = pd.DataFrame({'m_r': self.m_r, 'color': self.m_b - self.m_r})[['m_r','color']]
+        self.GMM = mixture.GaussianMixture(2, covariance_type = covtype)
+        self.GMM.fit(X)
+
+    def plot_RSmixture(self):
+        # Plot Gaussians
+        try:
+            self.GMM, self.ax
+        except AttributeError:
+            print "run RSmixture and created CMD plot first"
+        # Predict which Gaussian correspons to RS
+        if self.GMM.means_[:,1][1] == np.min(self.GMM.means_[:,1]):
+            cov_index = [0,1]
+        else:
+            cov_index = [1,0]
+        for cov, Gmean, color in zip(self.GMM.covariances_[cov_index], self.GMM.means_[cov_index], ['red','blue']):
+            v, w = linalg.eigh(cov)
+            angle = 180. * np.arctan2(w[0][1], w[0][0])/ np.pi
+            v = 2. * np.sqrt(2.) * np.sqrt(v)
+            for v in [v, 2*v, 3*v]:
+                ell = mpl.patches.Ellipse(Gmean, v[0], v[1], 180. + angle, color=color, fill = False, lw = 2)
+                ell.set_clip_box(self.ax.bbox)
+                self.ax.add_artist(ell)
+                
                 
 
 def set_plot_params():
