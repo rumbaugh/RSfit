@@ -29,13 +29,14 @@ class CMD:
         self.field = field
         if checkfield: return True
 
-    def analyze_field(self, field, checkfield = True, RSmodel_stepwait = 0):
+    def analyze_field(self, field, checkfield = True, RSmodel_stepwait = 0, loadphot = False):
         checkedfield = self.set_field(field, checkfield)
         if checkfield:
             if not(checkedfield): return
         self.load_spec()
-        self.load_phot()
-        self.match_spec2phot()
+        if loadphot:
+            self.load_phot()
+            self.match_spec2phot()
         self.set_CMD_mags()
         self.plot_CMD()
         self.setRSinit(numsig = 2)
@@ -43,7 +44,7 @@ class CMD:
 
     def load_spec(self, prioritizeACS = True, cut_by_q = True, cut_by_z = True, maxmag = 40, minmag = None):
         # Loads specotrscopic file
-        # Information paths is contained in spec_dict
+        # Information on paths is contained in spec_dict
         self.speccat = '{}{}'.format(self.specpath,self.spec_dict[self.field]['file'])
         self.specdf = pd.read_csv(self.speccat, usecols = self.spec_dict[self.field]['coltup'], delim_whitespace = True)
         try:
@@ -134,22 +135,26 @@ class CMD:
         # on the redshift threshold set by z_threshold
         try:
             self.specdf.r_err, self.specdf.i_err, self.specdf.z_err
+            specerrs = True
         except AttributeError:
-            if (not((self.field == 'cl1604') & ACS_override)):
-                print "Must set photometric errors"
-                return
+            specerrs = False
         if ((self.field == 'cl1604') & ACS_override):
             self.m_b, self.m_r = self.specdf.F606W, self.specdf.F814W
             self.m_b_name, self.m_r_name = 'F606W', 'F814W'
         elif use_supercolors:
-            self.m_b, self.m_r, self.m_b_err, self.m_r_err = calc_supercolor_mags(self.specdf.r, self.specdf.i, self.specdf.z, self.specdf.r_err, self.specdf.i_err, self.specdf.z_err, self.specdf.redshift)
+            if specerrs:
+                self.m_b, self.m_r, self.m_b_err, self.m_r_err = calc_supercolor_mags(self.specdf.r, self.specdf.i, self.specdf.z, self.specdf.redshift, self.specdf.r_err, self.specdf.i_err, self.specdf.z_err)
+            else:
+                self.m_b, self.m_r = calc_supercolor_mags(self.specdf.r, self.specdf.i, self.specdf.z, self.specdf.redshift, calc_error = False)
             self.m_b_name, self.m_r_name = r'$M_{blue}$', r'$M_{red}$'
         else:
             if self.spec_dict[field]['z'][0] > z_threshold:
-                self.m_b, self.m_r, self.m_b_err, self.m_r_err = self.specdf.i, self.specdf.z, self.specdf.i_err, self.specdf.z_err 
+                self.m_b, self.m_r = self.specdf.i, self.specdf.z
+                if specerrs: self.m_b_err, self.m_r_err = self.specdf.i_err, self.specdf.z_err 
                 self.m_b_name, self.m_r_name = 'i', 'z'
             else:
-                self.m_b, self.m_r, self.m_b_err, self.m_r_err = self.specdf.r, self.specdf.i, self.specdf.r_err, self.specdf.i_err 
+                self.m_b, self.m_r = self.specdf.r, self.specdf.i
+                if specerrs: self.m_b_err, self.m_r_err = self.specdf.r_err, self.specdf.i_err 
                 self.m_b_name, self.m_r_name = 'r', 'i'
 
 
@@ -198,9 +203,9 @@ class CMD:
         if plotRSbounds:
             self.RSOax.axvline(-1, ls = 'dashed', lw = 2, color = 'k')
             self.RSOax.axvline(+1, ls = 'dashed', lw = 2, color = 'k')
-        self.ax.set_xlabel('Red Sequence Offset')
-        self.ax.set_ylabel('Number of galaxies')
-        self.ax.set_title(self.field.upper())
+        self.RSOax.set_xlabel('Red Sequence Offset')
+        self.RSOax.set_ylabel('Number of galaxies')
+        self.RSOax.set_title(self.field.upper())
         
     def setRSinit(self, figure = 1, numsig = None):
         # Uses user input to initialize RS parameters/fitting region

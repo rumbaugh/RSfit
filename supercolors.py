@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.interpolate import interp1d
 
-def calc_supercolor_mags(r, i, z, rerr, ierr, zerr, redshift, param_dict = {}, calc_error = True):
+def calc_supercolor_mags(r, i, z, redshift, rerr = None, ierr = None, zerr = None,  param_dict = {}, calc_error = True):
     # Calculates 'supercolor' magnitudes, which are a parameterization
     # of r, i, and z observer-frame magnitudes, as well as redshift.
     # The parameterization is fit to approximate rest-frame magnitudes
