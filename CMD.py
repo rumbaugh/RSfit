@@ -323,17 +323,21 @@ class CMD:
         RSOs = RS_model(self.m_r, self.y0, self.m) - (self.m_b - self.m_r)
         onRS = np.abs(RSOs) <= 0.5*self.wid
         prevonRS = np.copy(onRS)
-        doclip = True
-        while doclip:
+        converged = False
+        for iteration in range(0,100):
             onRS = np.abs(RSOs)  <= np.std(RSOs[onRS]) * self.numsig
             # End when there is no change in RS membership
-            if np.count_nonzero(onRS != prevonRS) > 0: doclip = False
+            if np.count_nonzero(onRS != prevonRS) > 0: 
+                converged = True
+                continue
             if stepwait > 0:
                 # Optional step-by-step plotting
+                print iteration
                 self.plot_CMD()
                 plot_RS(self.ax, self.y0, self.m, self.numsig*2*np.std(RSOs[onRS]), plotcenter = False)
                 time.sleep(stepwait)
             prevonRS = np.copy(onRS)
+        if not(converged): print "RSsigclip failed to converge"
         self.sig = np.std(RSOs[onRS])
         self.wid = 2*self.numsig*self.sig
         if plotCMD: self.plot_CMD()
