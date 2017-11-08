@@ -1,16 +1,19 @@
-import numpy as np
-import pandas as pd
-import time
-import matplotlib
-import matplotlib.pyplot as plt
-from scipy import linalg
-from scipy.stats import linregress
-from scipy.interpolate import interp1d
-from sklearn import mixture, cluster
-import pydl.pydlutils.spheregroup
-from set_spec_dict import set_spec_dict
-from supercolors import *
-from RSfit import *
+import warnings
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore")#, category=DeprecationWarning)
+    import numpy as np
+    import pandas as pd
+    import time
+    import matplotlib
+    import matplotlib.pyplot as plt
+    from scipy import linalg
+    from scipy.stats import linregress
+    from scipy.interpolate import interp1d
+    from sklearn import mixture, cluster
+    import pydl.pydlutils.spheregroup
+    from set_spec_dict import set_spec_dict
+    from supercolors import *
+    from RSfit import *
 
 
 class CMD:
@@ -68,12 +71,21 @@ class CMD:
         # Make cuts to spectroscoptic data frame
         if cut_by_q: self.cut_spec_by_q()
         if cut_by_z: self.cut_spec_by_z()
-        if ((maxmag != None) & (minmag != None)): self.cut_spec_by_mag(maxmag, minmag)
+        if ((maxmag != None) | (minmag != None)): 
+            if ((self.field == 'cl1604') & prioritizeACS):
+                self.cut_spec_by_mag(ACSoverride = True)
+            else:
+                self.cut_spec_by_mag(maxmag, minmag)
 
-    def cut_spec_by_mag(self, maxmag = 40, minmag = None):
+    def cut_spec_by_mag(self, maxmag = 40, minmag = None, ACSoverride = False):
         # Cuts spectroscopic catalog by outlier magnitudes
-        self.specdf = self.specdf[(self.specdf.r < maxmag) & (self.specdf.i < maxmag) & (self.specdf.z < maxmag)]
-        if minmag != None: self.specdf = self.specdf[(self.specdf.r > minmag) & (self.specdf.i > minmag) & (self.specdf.z > minmag)]
+        if ACSoverride:
+            self.specdf = self.specdf[(self.specdf.F814W < maxmag)]
+            if minmag != None: self.specdf = self.specdf[(self.specdf.F814W > minmag)]
+            self.specdf = self.specdf[(self.specdf.F606W - self.specdf.F814W < 3)]
+        else:
+            self.specdf = self.specdf[(self.specdf.r < maxmag) & (self.specdf.i < maxmag) & (self.specdf.z < maxmag)]
+            if minmag != None: self.specdf = self.specdf[(self.specdf.r > minmag) & (self.specdf.i > minmag) & (self.specdf.z > minmag)]
 
     def cut_spec_by_q(self, goodQ = [3, 4]):
         # Cuts spectroscopic catalog by Q (the quality flag)
@@ -129,13 +141,14 @@ class CMD:
         else:
             return matched_phot
         
-    def set_CMD_mags(self, use_supercolors = True, z_threshold = 1.0, ACS_override = True):
+    def set_CMD_mags(self, use_supercolors = True, z_threshold = 1.0, ACS_override = True, cut_outliers = False):
         # Sets the magnitudes to be used for making CMDs
         # Options are either supercolors, or r/i/z, depending
         # on the redshift threshold set by z_threshold
         try:
             self.specdf.r_err, self.specdf.i_err, self.specdf.z_err
             specerrs = True
+            if ACS_override: specerrs = False
         except AttributeError:
             specerrs = False
         if ((self.field == 'cl1604') & ACS_override):
@@ -156,26 +169,67 @@ class CMD:
                 self.m_b, self.m_r = self.specdf.r, self.specdf.i
                 if specerrs: self.m_b_err, self.m_r_err = self.specdf.r_err, self.specdf.i_err 
                 self.m_b_name, self.m_r_name = 'r', 'i'
+        if cut_outliers:
+            cut_inds = np.arange(len(self.m_b))[(self.m_b < 40) & (self.m_r < 40) & (self.m_b - self.m_r < 4)]
+            self.m_b, self.m_r, self.specdf = self.m_b[cut_inds], self.m_r[cut_inds], self.specdf.iloc[cut_inds]
+            if specerrs: self.m_b_err, self.m_r_err = self.m_b_err[cut_inds], self.m_r_err [cut_inds]
 
-
-    def plot_CMD(self, show = True, figure = 1, clear = True):
+    def plot_CMD(self, show = True, figure = 1, clear = True, xmax = None, xmin = None, ymax = None, ymin = None, plotoverride = False):
         # Plots a color-magnitude diagram
         try:
             self.m_b, self.m_r
         except AttributeError:
             print "Must set m_b and m_r"
             return
+        if xmax == None:
+            try:
+                xmax = self.xmax
+            except:
+                xmax = None
+        if xmin == None:
+            try:
+                xmin = self.xmin
+            except:
+                xmin = None
+        if ymax == None:
+            try:
+                ymax = self.ymax
+            except:
+                ymax = None
+        if ymin == None:
+            try:
+                ymin = self.ymin
+            except:
+                ymin = None
         try:
             self.ax
         except AttributeError:
+            plotoverride = True
+        if plotoverride:
             self.fig = plt.figure(figure)
             self.ax = self.fig.add_subplot(111)
         if clear: self.ax.cla()
         set_plot_params()
         self.ax.scatter(self.m_r, self.m_b - self.m_r)
         self.ax.set_xlabel(self.m_r_name)
-        self.ax.set_ylabel('{} - {}'.format(self.m_r_name, self.m_b_name))
+        self.ax.set_ylabel('{} - {}'.format(self.m_b_name, self.m_r_name))
         self.ax.set_title(self.field.upper())
+        xlim = self.ax.get_xlim()
+        ylim = self.ax.get_ylim()
+        if xmax != None:
+            self.xmax = xmax
+            if (xmax < xlim[1]): xlim = (xlim[0], xmax)
+        if (xmin != None):
+            self.xmin = xmin
+            if (xmin > xlim[0]): xlim = (xmin, xlim[1])
+        if (ymax != None):
+            self.ymax = ymax
+            if (ymax < ylim[1]): ylim = (ylim[0], ymax)
+        if (ymin != None):
+            self.ymin = ymin
+            if (ymin > ylim[0]): ylim = (ymin, ylim[1])
+        self.ax.set_xlim(xlim[0], xlim[1])
+        self.ax.set_ylim(ylim[0], ylim[1])
         if show: plt.show(block = False)
 
     def plotRSO(self, plotRSbounds = True, RSOstep = 0.25, show = True, figure = 2, clear = True):
@@ -206,8 +260,9 @@ class CMD:
         self.RSOax.set_xlabel('Red Sequence Offset')
         self.RSOax.set_ylabel('Number of galaxies')
         self.RSOax.set_title(self.field.upper())
+        plt.show(block=False)
         
-    def setRSinit(self, figure = 1, numsig = None):
+    def setRSinit(self, figure = 1, numsig = None, point = None, slope = None, width = None, plotCMD = True):
         # Uses user input to initialize RS parameters/fitting region
         try:
             self.ax
@@ -219,6 +274,14 @@ class CMD:
             if self.field in ['cl1324', 'cl1604']: self.numsig = 2
         else:
             self.numsig = numsig
+        if ((point != None) & (slope != None) & (width != None)):
+            x, y, m, wid = point[0], point[1], slope, width
+            self.y0, self.m, self.wid, self.sig = m*(-x) + y, m, wid, wid/(2.*self.numsig)
+            if plotCMD: self.plot_CMD()
+            plot_RS(self.ax, self.y0, self.m, self.wid, plotcenter = True)
+            return
+        elif np.count_nonzero(np.array([point != None, slope != None, width != None])) > 0:
+            print "All of point, slope, and width must be set to bypass manual setting."
         x, y, m, wid = RSinit(self.ax) #Initial guess
         changeflag = False
         while not(changeflag):
@@ -245,7 +308,7 @@ class CMD:
                 print "Invalid input: %s"%inp_c
             plt.show(block=False)
 
-    def RSsigclip(self, stepwait = 0):
+    def RSsigclip(self, stepwait = 0, plotCMD = True):
         #Does sigma-clipping/linear fit algorithm to fit RS
         try:
             self.y0, self.m, self.wid, self.sig
@@ -273,8 +336,9 @@ class CMD:
             prevonRS = np.copy(onRS)
         self.sig = np.std(RSOs[onRS])
         self.wid = 2*self.numsig*self.sig
-        self.plot_CMD()
+        if plotCMD: self.plot_CMD()
         plot_RS(self.ax, self.y0, self.m, self.wid, plotcenter = False)
+        plt.show(block=False)
 
     def RSmodel(self, stepwait = 0):
         #Does sigma-clipping/linear fit algorithm to fit RS
@@ -311,7 +375,7 @@ class CMD:
         self.GMM = mixture.GaussianMixture(2, covariance_type = covtype)
         self.GMM.fit(X)
 
-    def plot_RSmixture(self):
+    def plot_RSmixture(self, plotCMD = False):
         # Plot Gaussians
         try:
             self.GMM, self.ax
@@ -322,14 +386,16 @@ class CMD:
             cov_index = [0,1]
         else:
             cov_index = [1,0]
+        if plotCMD: self.plot_CMD()
         for cov, Gmean, color in zip(self.GMM.covariances_[cov_index], self.GMM.means_[cov_index], ['red','blue']):
             v, w = linalg.eigh(cov)
             angle = 180. * np.arctan2(w[0][1], w[0][0])/ np.pi
             v = 2. * np.sqrt(2.) * np.sqrt(v)
             for v in [v, 2*v, 3*v]:
-                ell = mpl.patches.Ellipse(Gmean, v[0], v[1], 180. + angle, color=color, fill = False, lw = 2)
+                ell = matplotlib.patches.Ellipse(Gmean, v[0], v[1], 180. + angle, color=color, fill = False, lw = 2)
                 ell.set_clip_box(self.ax.bbox)
                 self.ax.add_artist(ell)
+        plt.show(block=False)
 
     def RSkmeans(self, n_clusters = 2, init = 'k-means++'):
         # Clustering analysis of RS and BC using k-means

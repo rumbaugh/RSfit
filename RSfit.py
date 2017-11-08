@@ -76,3 +76,24 @@ def one_color_cmap(cmap = pl.cm.gray):
     my_cmap[:,-1] = np.append(np.ones(1), np.zeros(cmap.N-1))
     my_cmap = ListedColormap(my_cmap)
     return my_cmap
+
+#xmin = 20.5, xmax = 25.75, ymin = -0.1, ymax = 2.5
+
+#from CMD import *
+#CMD1821 = CMD()
+#CMD1821.set_field('cl1821')
+#CMD1821.load_spec()
+#CMD1821.set_CMD_mags()
+#CMD1821.plot_CMD()
+
+#CMD1821.plot_CMD(show = False, plotoverride = True)
+#CMD1821.setRSinit(point = (23, 1.75), width = 0.45, slope = -0.05, plotCMD = False)
+
+#CMD1821.plot_CMD(show = False, plotoverride = True)
+#CMD1821.RSsigclip(plotCMD = False)
+
+#CMD1821.plotRSO()
+
+#CMD1821.plot_CMD(show = False, plotoverride = True)
+#CMD1821.RSmixture()
+#CMD1821.plot_RSmixture(plotCMD = False)
