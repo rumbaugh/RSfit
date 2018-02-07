@@ -28,12 +28,14 @@ def set_spec_dict():
         #set dictionary with column names and formats of spec file
         spec_dict[field]['specloaddict'] = {'names':('ID', 'mask', 'slit', 'ra', 'dec', 'magR', 'magI', 'magZ', 'z', 'zerr', 'Q'), 'formats':('|S16', '|S16', '|S8', 'f8', 'f8', 'f8', 'f8', 'f8', 'f8', 'f8', 'i8')}
         cols2use = (0,)
-        for icols in range(1, len(spec_dict[field]['specloaddict']['names'])): cols2use = cols2use + (icols,)
+        for icols in range(1, len(spec_dict[field]['specloaddict']['names'])): 
+            cols2use = cols2use + (icols,)
         spec_dict[field]['coltup'] = cols2use
     #cl1604 is a special case because of ACS imaging
     spec_dict['cl1604']['specloaddict'] = {'names':('ID', 'mask', 'slit', 'ra', 'dec', 'magR', 'magI', 'magZ', 'z', 'zerr', 'Q', 'OLDIDs', 'PHOT_FLAGS', 'ACS_RA', 'ACS_DEC', 'ACS_ID', 'F606W', 'F814W'), 'formats':('|S16', '|S16', '|S8', 'f8', 'f8', 'f8', 'f8', 'f8', 'f8', 'f8', 'i8', '|S24', '|S24', 'f8', 'f8', 'f8', 'f8', 'f8')}
     cols2use = (0,)
-    for icols in range(1,len(spec_dict['cl1604']['specloaddict']['names'])): cols2use = cols2use + (icols,)
+    for icols in range(1,len(spec_dict['cl1604']['specloaddict']['names'])): 
+        cols2use = cols2use + (icols,)
     spec_dict['cl1604']['coltup'] = cols2use
     spec_dict['basepath'] = '/home/rumbaugh/git/ORELSE/Catalogs/Spec_z/' #path to spectroscopy files
 
